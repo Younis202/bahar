@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Award, Download, Share2, ArrowLeft, Anchor, CheckCircle } from 'lucide-react';
+import QRCode from '@/components/QRCode';
 
 export default function Certificate() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -106,13 +107,22 @@ export default function Certificate() {
                 <p className="text-sm text-muted-foreground mt-1">{course?.level && course.level.charAt(0).toUpperCase() + course.level.slice(1)} Level • {course?.language}</p>
               </div>
 
-              <div className="flex items-center justify-center gap-3 mb-8">
-                <Award className="w-6 h-6 text-gold" />
+              <div className="flex items-center justify-center gap-6 mb-8">
                 <div className="text-center">
+                  <Award className="w-6 h-6 text-gold mx-auto mb-1" />
                   <p className="text-xs text-muted-foreground">Certificate Number</p>
                   <p className="font-mono text-sm font-bold text-accent">{cert.certificate_number}</p>
                 </div>
-                <CheckCircle className="w-6 h-6 text-green-400" />
+                <QRCode 
+                  value={`${window.location.origin}/verify/${cert.certificate_number}`} 
+                  size={100}
+                  className="border border-border"
+                />
+                <div className="text-center">
+                  <CheckCircle className="w-6 h-6 text-green-400 mx-auto mb-1" />
+                  <p className="text-xs text-muted-foreground">Verified</p>
+                  <p className="text-xs text-green-400 font-medium">✓ Valid</p>
+                </div>
               </div>
 
               <p className="text-xs text-muted-foreground">

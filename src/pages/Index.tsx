@@ -7,6 +7,7 @@ import Footer from '@/components/Footer';
 import CourseCard from '@/components/CourseCard';
 import { courses, categories, instructors } from '@/data/mockData';
 import heroBg from '@/assets/hero-bg.jpg';
+import TestimonialSection from '@/components/TestimonialSection';
 
 const stats = [
   { value: '12,000+', label: 'Students Enrolled', icon: Users },
@@ -258,6 +259,9 @@ export default function Index() {
           </motion.div>
         </div>
       </section>
+
+      {/* Testimonials */}
+      <TestimonialSection />
 
       {/* CTA */}
       <section className="section-padding">

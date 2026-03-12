@@ -1,10 +1,16 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Check, Play, FileText, HelpCircle, Menu, X, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Play, FileText, HelpCircle, Menu, X, CheckCircle, BookOpen, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import BunnyPlayer from '@/components/BunnyPlayer';
+import TextLessonContent from '@/components/TextLessonContent';
+import QuizPlayer from '@/components/QuizPlayer';
+import LearningNotes from '@/components/LearningNotes';
+import LessonComments from '@/components/LessonComments';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/supabaseAny';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -142,7 +148,9 @@ export default function LessonPlayer() {
 
   const lessonTypeIcon = (type: string) => {
     if (type === 'quiz') return <HelpCircle className="w-3.5 h-3.5" />;
+    if (type === 'text' || type === 'article') return <BookOpen className="w-3.5 h-3.5" />;
     if (type === 'document') return <FileText className="w-3.5 h-3.5" />;
+    if (type === 'audio') return <Headphones className="w-3.5 h-3.5" />;
     return <Play className="w-3.5 h-3.5" />;
   };
 
@@ -188,17 +196,49 @@ export default function LessonPlayer() {
       <div className="flex flex-1 overflow-hidden">
         {/* Video Area */}
         <div className="flex-1 flex flex-col overflow-y-auto">
-          <div className="w-full bg-black">
-            <div className="max-w-5xl mx-auto">
-              <BunnyPlayer
-                videoId={currentLesson.bunny_video_id}
-                title={currentLesson.title}
-                className="w-full rounded-none"
-              />
-            </div>
+          {/* Lesson Content - varies by type */}
+          <div className="w-full">
+            {(currentLesson.lesson_type === 'text' || currentLesson.lesson_type === 'article') ? (
+              <div className="max-w-4xl mx-auto p-6">
+                <TextLessonContent content={currentLesson.text_content} title={currentLesson.title} />
+              </div>
+            ) : currentLesson.lesson_type === 'quiz' ? (
+              <div className="max-w-3xl mx-auto p-6">
+                <QuizPlayer
+                  lessonId={currentLesson.id}
+                  onComplete={(passed) => {
+                    if (passed) toggleComplete(currentLesson.id);
+                  }}
+                />
+              </div>
+            ) : currentLesson.lesson_type === 'audio' ? (
+              <div className="max-w-4xl mx-auto p-6">
+                <div className="bg-card border border-border rounded-xl p-8 text-center">
+                  <Headphones className="w-16 h-16 mx-auto mb-4 text-primary/40" />
+                  <h3 className="font-display text-lg font-bold mb-4">{currentLesson.title}</h3>
+                  {currentLesson.audio_url ? (
+                    <audio controls className="w-full max-w-md mx-auto" src={currentLesson.audio_url}>
+                      Your browser does not support audio.
+                    </audio>
+                  ) : (
+                    <p className="text-muted-foreground">No audio file attached yet</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-black">
+                <div className="max-w-5xl mx-auto">
+                  <BunnyPlayer
+                    videoId={currentLesson.bunny_video_id}
+                    title={currentLesson.title}
+                    className="w-full rounded-none"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Lesson Info */}
+          {/* Lesson Info + Tabs */}
           <div className="max-w-4xl mx-auto w-full px-6 py-8">
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
@@ -222,6 +262,20 @@ export default function LessonPlayer() {
                 {completedLessons.has(currentLesson.id) ? 'Completed ✓' : 'Mark Complete'}
               </Button>
             </div>
+
+            {/* Tabs: Notes, Comments */}
+            <Tabs defaultValue="comments" className="mb-6">
+              <TabsList className="bg-secondary/50">
+                <TabsTrigger value="comments">💬 Discussion</TabsTrigger>
+                <TabsTrigger value="notes">📝 My Notes</TabsTrigger>
+              </TabsList>
+              <TabsContent value="comments" className="mt-4">
+                <LessonComments lessonId={currentLesson.id} />
+              </TabsContent>
+              <TabsContent value="notes" className="mt-4">
+                <LearningNotes lessonId={currentLesson.id} lessonTitle={currentLesson.title} />
+              </TabsContent>
+            </Tabs>
 
             {/* Navigation */}
             <div className="flex items-center justify-between pt-6 border-t border-border">

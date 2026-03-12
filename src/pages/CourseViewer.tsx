@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ const CourseViewer = () => {
 
   const [currentLessonId, setCurrentLessonId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [expandedTopics, setExpandedTopics] = useState<string[]>([]);
+  const [expandedSections, setExpandedSections] = useState<string[]>([]);
 
   // Check enrollment
   const { data: enrollment, isLoading: enrollLoading } = useQuery({
@@ -33,7 +33,7 @@ const CourseViewer = () => {
         .from('enrollments')
         .select('*')
         .eq('course_id', id!)
-        .eq('user_id', user!.id)
+        .eq('student_id', user!.id)
         .maybeSingle();
       return data;
     },
@@ -53,18 +53,17 @@ const CourseViewer = () => {
     enabled: !!id,
   });
 
-  const { data: topics } = useQuery({
-    queryKey: ['topics-with-lessons', id],
+  const { data: sections } = useQuery({
+    queryKey: ['sections-with-lessons', id],
     queryFn: async () => {
       const { data } = await supabase
-        .from('topics')
+        .from('sections')
         .select('*, lessons(*)')
         .eq('course_id', id!)
-        .order('sort_order');
-      // Sort lessons within each topic
-      return data?.map(t => ({
-        ...t,
-        lessons: (t.lessons || []).sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+        .order('order_index');
+      return data?.map(s => ({
+        ...s,
+        lessons: Array.isArray(s.lessons) ? [...s.lessons].sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0)) : []
       })) ?? [];
     },
     enabled: !!id,
@@ -73,40 +72,39 @@ const CourseViewer = () => {
   const { data: progressData } = useQuery({
     queryKey: ['lesson-progress', id, user?.id],
     queryFn: async () => {
-      const lessonIds = topics?.flatMap(t => t.lessons?.map((l: any) => l.id) || []) || [];
+      const lessonIds = sections?.flatMap(s => s.lessons?.map((l: any) => l.id) || []) || [];
       if (lessonIds.length === 0) return [];
       const { data } = await supabase
         .from('lesson_progress')
         .select('*')
-        .eq('user_id', user!.id)
+        .eq('student_id', user!.id)
         .in('lesson_id', lessonIds);
       return data ?? [];
     },
-    enabled: !!topics && !!user,
+    enabled: !!sections && !!user,
   });
 
   const completedLessonIds = new Set(progressData?.filter(p => p.completed).map(p => p.lesson_id) || []);
-  const allLessons = topics?.flatMap(t => t.lessons || []) || [];
+  const allLessons = sections?.flatMap(s => s.lessons || []) || [];
   const progressPercent = allLessons.length > 0 ? Math.round((completedLessonIds.size / allLessons.length) * 100) : 0;
 
   // Set first lesson as default
   useEffect(() => {
     if (!currentLessonId && allLessons.length > 0) {
-      // Find first uncompleted lesson, or first lesson
       const firstUncompleted = allLessons.find(l => !completedLessonIds.has(l.id));
       setCurrentLessonId(firstUncompleted?.id || allLessons[0].id);
     }
   }, [allLessons, currentLessonId, completedLessonIds]);
 
-  // Expand topic of current lesson
+  // Expand section of current lesson
   useEffect(() => {
-    if (currentLessonId && topics) {
-      const topic = topics.find(t => t.lessons?.some((l: any) => l.id === currentLessonId));
-      if (topic && !expandedTopics.includes(topic.id)) {
-        setExpandedTopics(prev => [...prev, topic.id]);
+    if (currentLessonId && sections) {
+      const section = sections.find(s => s.lessons?.some((l: any) => l.id === currentLessonId));
+      if (section && !expandedSections.includes(section.id)) {
+        setExpandedSections(prev => [...prev, section.id]);
       }
     }
-  }, [currentLessonId, topics]);
+  }, [currentLessonId, sections]);
 
   const currentLesson = allLessons.find(l => l.id === currentLessonId);
   const currentIndex = allLessons.findIndex(l => l.id === currentLessonId);
@@ -122,7 +120,7 @@ const CourseViewer = () => {
       } else {
         await supabase.from('lesson_progress').insert({
           lesson_id: lessonId,
-          user_id: user!.id,
+          student_id: user!.id,
           completed: true,
           completed_at: new Date().toISOString(),
         });
@@ -146,13 +144,13 @@ const CourseViewer = () => {
     if (!enrollLoading && !enrollment && user) navigate(`/course/${id}`);
   }, [authLoading, enrollLoading, user, enrollment]);
 
-  if (authLoading || enrollLoading || !topics) {
+  if (authLoading || enrollLoading || !sections) {
     return <div className="min-h-screen flex items-center justify-center">{t('general.loading')}</div>;
   }
 
-  const toggleTopic = (topicId: string) => {
-    setExpandedTopics(prev =>
-      prev.includes(topicId) ? prev.filter(t => t !== topicId) : [...prev, topicId]
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev =>
+      prev.includes(sectionId) ? prev.filter(s => s !== sectionId) : [...prev, sectionId]
     );
   };
 
@@ -164,7 +162,7 @@ const CourseViewer = () => {
           {/* Progress Header */}
           <div className="p-4 border-b">
             <h3 className="font-bold text-sm mb-2">
-              {language === 'ar' ? course?.title_ar : (course?.title_en || course?.title_ar)}
+              {course?.title}
             </h3>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>{progressPercent}%</span>
@@ -175,20 +173,18 @@ const CourseViewer = () => {
           {/* Lessons List */}
           <ScrollArea className="flex-1">
             <div className="p-2">
-              {topics.map((topic: any) => (
-                <div key={topic.id} className="mb-1">
+              {sections.map((section: any) => (
+                <div key={section.id} className="mb-1">
                   <button
-                    onClick={() => toggleTopic(topic.id)}
+                    onClick={() => toggleSection(section.id)}
                     className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 text-sm font-semibold"
                   >
-                    <span className="truncate">
-                      {language === 'ar' ? topic.title_ar : (topic.title_en || topic.title_ar)}
-                    </span>
-                    {expandedTopics.includes(topic.id) ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                    <span className="truncate">{section.title}</span>
+                    {expandedSections.includes(section.id) ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
                   </button>
-                  {expandedTopics.includes(topic.id) && (
+                  {expandedSections.includes(section.id) && (
                     <div className="ms-2">
-                      {topic.lessons?.map((lesson: any) => {
+                      {section.lessons?.map((lesson: any) => {
                         const isCompleted = completedLessonIds.has(lesson.id);
                         const isCurrent = lesson.id === currentLessonId;
                         return (
@@ -206,9 +202,7 @@ const CourseViewer = () => {
                             ) : (
                               <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
                             )}
-                            <span className="truncate text-start">
-                              {language === 'ar' ? lesson.title_ar : (lesson.title_en || lesson.title_ar)}
-                            </span>
+                            <span className="truncate text-start">{lesson.title}</span>
                             {lesson.duration_minutes && (
                               <span className="ms-auto text-xs text-muted-foreground shrink-0">
                                 {lesson.duration_minutes}{language === 'ar' ? 'د' : 'm'}
@@ -234,18 +228,21 @@ const CourseViewer = () => {
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
           <h2 className="font-semibold truncate">
-            {currentLesson && (language === 'ar' ? currentLesson.title_ar : (currentLesson.title_en || currentLesson.title_ar))}
+            {currentLesson?.title}
           </h2>
         </div>
 
         {/* Video Area */}
         <div className="flex-1 overflow-auto">
           <div className="max-w-5xl mx-auto p-4">
-            {currentLesson?.video_embed_code ? (
-              <div
-                className="aspect-video w-full rounded-lg overflow-hidden bg-black"
-                dangerouslySetInnerHTML={{ __html: currentLesson.video_embed_code }}
-              />
+            {currentLesson?.bunny_video_id ? (
+              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
+                <iframe
+                  src={`https://iframe.mediadelivery.net/embed/library/${currentLesson.bunny_video_id}`}
+                  className="w-full h-full"
+                  allowFullScreen
+                />
+              </div>
             ) : (
               <div className="aspect-video w-full rounded-lg bg-muted flex items-center justify-center">
                 <div className="text-center text-muted-foreground">
@@ -268,7 +265,6 @@ const CourseViewer = () => {
 
               <Button
                 variant={completedLessonIds.has(currentLessonId || '') ? 'outline' : 'default'}
-                className={completedLessonIds.has(currentLessonId || '') ? 'text-ocean' : 'bg-ocean hover:bg-ocean-dark'}
                 onClick={() => currentLessonId && markCompleteMutation.mutate(currentLessonId)}
                 disabled={markCompleteMutation.isPending}
               >
@@ -287,16 +283,6 @@ const CourseViewer = () => {
                 {language === 'ar' ? <ArrowLeft className="h-4 w-4 ms-2" /> : <ArrowRight className="h-4 w-4 ms-2" />}
               </Button>
             </div>
-
-            {/* Lesson description */}
-            {currentLesson && (currentLesson.description_ar || currentLesson.description_en) && (
-              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                <h3 className="font-semibold mb-2">{language === 'ar' ? 'عن الدرس' : 'About this lesson'}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {language === 'ar' ? currentLesson.description_ar : (currentLesson.description_en || currentLesson.description_ar)}
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>

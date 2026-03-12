@@ -9,7 +9,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { User, BookOpen, Award, Edit2, Save, Camera, Mail, Shield } from 'lucide-react';
+import {
+  User, BookOpen, Award, Edit2, Save, Camera, Mail, Shield,
+  Globe, Linkedin, Twitter, Briefcase, MapPin
+} from 'lucide-react';
+import { db } from '@/lib/supabaseAny';
 
 export default function Profile() {
   const { user, profile } = useAuth();
@@ -19,11 +23,24 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);
-  const [form, setForm] = useState({ full_name: '', bio: '', avatar_url: '' });
+  const [form, setForm] = useState({
+    full_name: '', bio: '', avatar_url: '',
+    website: '', linkedin_url: '', twitter_handle: '',
+    career_history: '', location: '',
+  });
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
-    if (profile) setForm({ full_name: profile.full_name, bio: profile.bio || '', avatar_url: profile.avatar_url || '' });
+    if (profile) setForm({
+      full_name: profile.full_name,
+      bio: profile.bio || '',
+      avatar_url: profile.avatar_url || '',
+      website: (profile as any).website || '',
+      linkedin_url: (profile as any).linkedin_url || '',
+      twitter_handle: (profile as any).twitter_handle || '',
+      career_history: (profile as any).career_history || '',
+      location: (profile as any).location || '',
+    });
     loadStats();
   }, [user, profile]);
 
@@ -38,9 +55,18 @@ export default function Profile() {
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await supabase
+    const { error } = await db
       .from('profiles')
-      .update({ full_name: form.full_name, bio: form.bio, avatar_url: form.avatar_url || null })
+      .update({
+        full_name: form.full_name,
+        bio: form.bio,
+        avatar_url: form.avatar_url || null,
+        website: form.website || null,
+        linkedin_url: form.linkedin_url || null,
+        twitter_handle: form.twitter_handle || null,
+        career_history: form.career_history || null,
+        location: form.location || null,
+      })
       .eq('id', user!.id);
     if (error) {
       toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
@@ -105,6 +131,39 @@ export default function Profile() {
                       rows={3}
                       className="bg-background text-sm resize-none"
                     />
+                    <Input
+                      value={form.location}
+                      onChange={e => setForm(p => ({ ...p, location: e.target.value }))}
+                      placeholder="Location (e.g. Dubai, UAE)"
+                      className="bg-background text-sm"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Input
+                        value={form.website}
+                        onChange={e => setForm(p => ({ ...p, website: e.target.value }))}
+                        placeholder="Website URL"
+                        className="bg-background text-sm"
+                      />
+                      <Input
+                        value={form.linkedin_url}
+                        onChange={e => setForm(p => ({ ...p, linkedin_url: e.target.value }))}
+                        placeholder="LinkedIn URL"
+                        className="bg-background text-sm"
+                      />
+                      <Input
+                        value={form.twitter_handle}
+                        onChange={e => setForm(p => ({ ...p, twitter_handle: e.target.value }))}
+                        placeholder="Twitter handle"
+                        className="bg-background text-sm"
+                      />
+                    </div>
+                    <Textarea
+                      value={form.career_history}
+                      onChange={e => setForm(p => ({ ...p, career_history: e.target.value }))}
+                      placeholder="Career history & experience..."
+                      rows={3}
+                      className="bg-background text-sm resize-none"
+                    />
                   </div>
                 ) : (
                   <>
@@ -112,10 +171,41 @@ export default function Profile() {
                       <h1 className="font-display text-2xl font-bold">{profile.full_name}</h1>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-md capitalize ${roleColor}`}>{profile.role}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                       <Mail className="w-4 h-4" />{profile.email}
                     </div>
-                    <p className="text-sm text-muted-foreground">{profile.bio || 'No bio added yet.'}</p>
+                    {(profile as any).location && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                        <MapPin className="w-4 h-4" />{(profile as any).location}
+                      </div>
+                    )}
+                    <p className="text-sm text-muted-foreground mb-3">{profile.bio || 'No bio added yet.'}</p>
+                    {/* Social links */}
+                    <div className="flex items-center gap-3">
+                      {(profile as any).website && (
+                        <a href={(profile as any).website} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                          <Globe className="w-4 h-4" />
+                        </a>
+                      )}
+                      {(profile as any).linkedin_url && (
+                        <a href={(profile as any).linkedin_url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                          <Linkedin className="w-4 h-4" />
+                        </a>
+                      )}
+                      {(profile as any).twitter_handle && (
+                        <a href={`https://twitter.com/${(profile as any).twitter_handle}`} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary transition-colors">
+                          <Twitter className="w-4 h-4" />
+                        </a>
+                      )}
+                    </div>
+                    {(profile as any).career_history && (
+                      <div className="mt-4 p-3 bg-secondary/30 rounded-lg border border-border">
+                        <p className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                          <Briefcase className="w-3 h-3" /> Career History
+                        </p>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{(profile as any).career_history}</p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

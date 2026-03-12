@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HelpCircle, CheckCircle, XCircle, RotateCcw, Trophy, ArrowRight } from 'lucide-react';
+import { HelpCircle, CheckCircle, XCircle, RotateCcw, Trophy, ArrowRight, Clock, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,12 +15,19 @@ interface Question {
 
 interface Props {
   lessonId: string;
+  timeLimitMinutes?: number;
   onComplete?: (passed: boolean, score: number) => void;
 }
 
 type QuizState = 'intro' | 'active' | 'result';
 
-export default function QuizPlayer({ lessonId, onComplete }: Props) {
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+export default function QuizPlayer({ lessonId, timeLimitMinutes, onComplete }: Props) {
   const { user } = useAuth();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [state, setState] = useState<QuizState>('intro');
@@ -30,8 +37,33 @@ export default function QuizPlayer({ lessonId, onComplete }: Props) {
   const [showExplanation, setShowExplanation] = useState(false);
   const [loading, setLoading] = useState(true);
   const [previousAttempt, setPreviousAttempt] = useState<any>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => { loadQuiz(); }, [lessonId]);
+
+  // Timer countdown
+  useEffect(() => {
+    if (state !== 'active' || timeLeft === null || timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(interval);
+          setTimedOut(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [state, timeLeft]);
+
+  // Auto-finish when timed out
+  useEffect(() => {
+    if (timedOut && state === 'active') {
+      finishQuiz();
+    }
+  }, [timedOut]);
 
   const loadQuiz = async () => {
     setLoading(true);
@@ -62,8 +94,16 @@ export default function QuizPlayer({ lessonId, onComplete }: Props) {
     setLoading(false);
   };
 
+  const startQuiz = () => {
+    setState('active');
+    if (timeLimitMinutes && timeLimitMinutes > 0) {
+      setTimeLeft(timeLimitMinutes * 60);
+    }
+    setTimedOut(false);
+  };
+
   const handleAnswer = (idx: number) => {
-    if (selected !== null) return; // Already answered
+    if (selected !== null) return;
     setSelected(idx);
     setAnswers(prev => ({ ...prev, [questions[currentQ].id]: idx }));
     setShowExplanation(true);
@@ -102,7 +142,8 @@ export default function QuizPlayer({ lessonId, onComplete }: Props) {
     setSelected(null);
     setAnswers({});
     setShowExplanation(false);
-    setState('active');
+    setTimedOut(false);
+    startQuiz();
   };
 
   if (loading) return (
@@ -120,6 +161,8 @@ export default function QuizPlayer({ lessonId, onComplete }: Props) {
 
   const score = questions.filter(q => answers[q.id] === q.correct_answer).length;
   const passed = score >= Math.ceil(questions.length * 0.7);
+  const timerPercent = timeLimitMinutes && timeLeft !== null ? (timeLeft / (timeLimitMinutes * 60)) * 100 : 100;
+  const isTimerDanger = timeLeft !== null && timeLeft < 60;
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -130,7 +173,12 @@ export default function QuizPlayer({ lessonId, onComplete }: Props) {
             <HelpCircle className="w-8 h-8 text-accent" />
           </div>
           <h3 className="font-display text-xl font-bold mb-2">Lesson Quiz</h3>
-          <p className="text-muted-foreground text-sm mb-4">{questions.length} questions • Pass score: 70%</p>
+          <p className="text-muted-foreground text-sm mb-2">{questions.length} questions • Pass score: 70%</p>
+          {timeLimitMinutes && (
+            <p className="text-sm text-primary flex items-center justify-center gap-1 mb-4">
+              <Timer className="w-4 h-4" /> Time limit: {timeLimitMinutes} minutes
+            </p>
+          )}
           {previousAttempt && (
             <div className={`inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg mb-4 ${previousAttempt.passed ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
               {previousAttempt.passed ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
@@ -138,7 +186,7 @@ export default function QuizPlayer({ lessonId, onComplete }: Props) {
               {previousAttempt.passed ? ' (Passed ✓)' : ' (Failed)'}
             </div>
           )}
-          <Button onClick={() => setState('active')} className="bg-gradient-primary text-primary-foreground hover:opacity-90">
+          <Button onClick={startQuiz} className="bg-gradient-primary text-primary-foreground hover:opacity-90">
             {previousAttempt ? 'Retake Quiz' : 'Start Quiz'} →
           </Button>
         </div>
@@ -147,17 +195,37 @@ export default function QuizPlayer({ lessonId, onComplete }: Props) {
       {/* Active */}
       {state === 'active' && (
         <div className="p-6">
-          {/* Progress */}
-          <div className="flex items-center justify-between mb-6">
+          {/* Progress + Timer */}
+          <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-muted-foreground">Question {currentQ + 1} of {questions.length}</span>
-            <div className="flex gap-1">
-              {questions.map((_, i) => (
-                <div key={i} className={`h-1.5 w-6 rounded-full transition-colors ${
-                  i < currentQ ? 'bg-primary' :
-                  i === currentQ ? 'bg-primary/60' : 'bg-secondary'
-                }`} />
-              ))}
+            {timeLeft !== null && (
+              <div className={`flex items-center gap-2 text-sm font-mono font-bold px-3 py-1 rounded-lg ${
+                isTimerDanger ? 'bg-destructive/10 text-destructive animate-pulse' : 'bg-secondary text-foreground'
+              }`}>
+                <Clock className="w-4 h-4" />
+                {formatTime(timeLeft)}
+              </div>
+            )}
+          </div>
+
+          {/* Timer bar */}
+          {timeLeft !== null && (
+            <div className="h-1 bg-secondary rounded-full mb-4 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 ${isTimerDanger ? 'bg-destructive' : 'bg-primary'}`}
+                style={{ width: `${timerPercent}%` }}
+              />
             </div>
+          )}
+
+          {/* Progress dots */}
+          <div className="flex gap-1 mb-6">
+            {questions.map((_, i) => (
+              <div key={i} className={`h-1.5 w-6 rounded-full transition-colors ${
+                i < currentQ ? 'bg-primary' :
+                i === currentQ ? 'bg-primary/60' : 'bg-secondary'
+              }`} />
+            ))}
           </div>
 
           {/* Question */}
@@ -229,7 +297,9 @@ export default function QuizPlayer({ lessonId, onComplete }: Props) {
           <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 ${passed ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
             {passed ? <Trophy className="w-10 h-10 text-gold" /> : <XCircle className="w-10 h-10 text-red-400" />}
           </div>
-          <h3 className="font-display text-2xl font-bold mb-2">{passed ? '🎉 Passed!' : 'Not quite there'}</h3>
+          <h3 className="font-display text-2xl font-bold mb-2">
+            {timedOut && !passed ? '⏰ Time\'s Up!' : passed ? '🎉 Passed!' : 'Not quite there'}
+          </h3>
           <p className="text-4xl font-bold mb-1 text-primary">{score}/{questions.length}</p>
           <p className="text-muted-foreground text-sm mb-6">
             {Math.round((score / questions.length) * 100)}% correct • {passed ? 'You passed (70% required)' : 'You need 70% to pass'}

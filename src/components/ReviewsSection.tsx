@@ -12,7 +12,7 @@ interface Review {
   rating: number;
   comment: string | null;
   created_at: string;
-  student_id: string;
+  user_id: string;
   profiles?: { full_name: string; avatar_url: string | null };
 }
 
@@ -44,7 +44,7 @@ export default function ReviewsSection({ courseId, isEnrolled }: Props) {
     if (data) {
       setReviews(data);
       if (user) {
-        const mine = data.find(r => r.student_id === user.id);
+        const mine = data.find(r => r.user_id === user.id);
         if (mine) { setUserReview(mine); setRating(mine.rating); setComment(mine.comment || ''); }
       }
     }
@@ -58,7 +58,7 @@ export default function ReviewsSection({ courseId, isEnrolled }: Props) {
         await supabase.from('reviews').update({ rating, comment }).eq('id', userReview.id);
         toast({ title: '✅ تم تحديث تقييمك' });
       } else {
-        await supabase.from('reviews').insert({ course_id: courseId, student_id: user.id, rating, comment });
+        await supabase.from('reviews').insert({ course_id: courseId, user_id: user.id, rating, comment });
         toast({ title: '⭐ تم إضافة تقييمك' });
       }
       setShowForm(false);
@@ -183,7 +183,7 @@ export default function ReviewsSection({ courseId, isEnrolled }: Props) {
                     <span className="text-xs text-muted-foreground ml-auto">
                       {new Date(review.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </span>
-                    {user && review.student_id === user.id && (
+                    {user && review.user_id === user.id && (
                       <button onClick={() => setShowForm(true)} className="text-muted-foreground hover:text-primary">
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>

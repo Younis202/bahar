@@ -4,6 +4,7 @@ import { Star, Clock, Users, BookOpen, Play, Check, ChevronDown, Globe, Lock } f
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
+import BookmarkButton from '@/components/BookmarkButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -221,6 +222,9 @@ export default function CourseDetail() {
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground text-center mb-4">30-Day Money-Back Guarantee</p>
+                    <div className="flex justify-center mb-4">
+                      <BookmarkButton courseId={id!} variant="button" />
+                    </div>
                     <div className="space-y-2 text-sm">
                       {[
                         course.duration_hours > 0 && `${course.duration_hours}h on-demand HD video`,

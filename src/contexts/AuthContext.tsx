@@ -11,6 +11,8 @@ export interface Profile {
   avatar_url: string | null;
   bio: string | null;
   role: UserRole;
+  wallet_balance: number;
+  total_points: number;
 }
 
 interface AuthContextType {
@@ -18,9 +20,12 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  isAdmin: boolean;
+  isInstructor: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string, role: UserRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,16 +39,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from('profiles' as never)
+        .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       if (!error && data) {
-        setProfile(data as Profile);
+        setProfile(data as unknown as Profile);
       }
     } catch (err) {
       console.error('Error fetching profile:', err);
     }
+  };
+
+  const refreshProfile = async () => {
+    if (user) await fetchProfile(user.id);
   };
 
   useEffect(() => {
@@ -94,8 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   };
 
+  const isAdmin = profile?.role === 'admin';
+  const isInstructor = profile?.role === 'instructor';
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, isAdmin, isInstructor, signIn, signUp, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

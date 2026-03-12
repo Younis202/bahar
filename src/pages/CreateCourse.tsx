@@ -16,10 +16,11 @@ import {
 interface LessonForm {
   id: string;
   title: string;
-  lesson_type: 'video' | 'quiz' | 'document';
+  lesson_type: 'video' | 'quiz' | 'document' | 'text' | 'article' | 'audio';
   duration_minutes: number;
   bunny_video_id: string;
   is_preview: boolean;
+  text_content: string;
 }
 
 interface SectionForm {
@@ -36,6 +37,7 @@ const newLesson = (): LessonForm => ({
   duration_minutes: 10,
   bunny_video_id: '',
   is_preview: false,
+  text_content: '',
 });
 
 const newSection = (): SectionForm => ({
@@ -131,7 +133,7 @@ export default function CreateCourse() {
         for (let li = 0; li < sec.lessons.length; li++) {
           const les = sec.lessons[li];
           if (!les.title.trim()) continue;
-          await supabase.from('lessons').insert({
+          const lessonInsert: any = {
             section_id: secData.id,
             title: les.title,
             lesson_type: les.lesson_type,
@@ -139,7 +141,9 @@ export default function CreateCourse() {
             bunny_video_id: les.bunny_video_id || null,
             is_preview: les.is_preview,
             order_index: li,
-          });
+          };
+          if (les.text_content) lessonInsert.text_content = les.text_content;
+          await supabase.from('lessons').insert(lessonInsert as any);
         }
       }
 
@@ -327,9 +331,12 @@ export default function CreateCourse() {
                               onChange={e => updateLesson(section.id, lesson.id, 'lesson_type', e.target.value)}
                               className="flex-1 px-2 py-1.5 bg-card border border-input rounded-md text-xs"
                             >
-                              <option value="video">Video</option>
-                              <option value="quiz">Quiz</option>
-                              <option value="document">Document</option>
+                              <option value="video">🎥 Video</option>
+                              <option value="text">📄 Text</option>
+                              <option value="article">📰 Article</option>
+                              <option value="audio">🎧 Audio</option>
+                              <option value="quiz">❓ Quiz</option>
+                              <option value="document">📁 Document</option>
                             </select>
                             <Input
                               type="number"
@@ -345,6 +352,15 @@ export default function CreateCourse() {
                               onChange={e => updateLesson(section.id, lesson.id, 'bunny_video_id', e.target.value)}
                               placeholder="Bunny Video ID"
                               className="bg-card h-8 text-xs"
+                            />
+                          )}
+                          {(lesson.lesson_type === 'text' || lesson.lesson_type === 'article') && (
+                            <Textarea
+                              value={lesson.text_content}
+                              onChange={e => updateLesson(section.id, lesson.id, 'text_content', e.target.value)}
+                              placeholder="Write lesson content here... Supports # headings, - bullet lists, > blockquotes"
+                              rows={4}
+                              className="bg-card text-xs col-span-2 resize-y"
                             />
                           )}
                           <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">

@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import AnnouncementBanner from "@/components/AnnouncementBanner";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -19,6 +21,15 @@ import Checkout from "./pages/Checkout";
 import Certificate from "./pages/Certificate";
 import Profile from "./pages/Profile";
 import BecomeInstructor from "./pages/BecomeInstructor";
+import Assignments from "./pages/Assignments";
+import Messages from "./pages/Messages";
+import Wallet from "./pages/Wallet";
+import Blog from "./pages/Blog";
+import Support from "./pages/Support";
+import Events from "./pages/Events";
+import Forums from "./pages/Forums";
+import Gamification from "./pages/Gamification";
+import Coupons from "./pages/Coupons";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +67,26 @@ const AppRoutes = () => (
     <Route path="/become-instructor" element={
       <ProtectedRoute><BecomeInstructor /></ProtectedRoute>
     } />
+    <Route path="/assignments" element={
+      <ProtectedRoute><Assignments /></ProtectedRoute>
+    } />
+    <Route path="/messages" element={
+      <ProtectedRoute><Messages /></ProtectedRoute>
+    } />
+    <Route path="/wallet" element={
+      <ProtectedRoute><Wallet /></ProtectedRoute>
+    } />
+    <Route path="/support" element={
+      <ProtectedRoute><Support /></ProtectedRoute>
+    } />
+    <Route path="/gamification" element={
+      <ProtectedRoute><Gamification /></ProtectedRoute>
+    } />
+    <Route path="/blog" element={<Blog />} />
+    <Route path="/blog/:id" element={<Blog />} />
+    <Route path="/events" element={<Events />} />
+    <Route path="/forums" element={<Forums />} />
+    <Route path="/deals" element={<Coupons />} />
     <Route path="/dashboard/student" element={
       <ProtectedRoute roles={['student', 'admin']}><StudentDashboard /></ProtectedRoute>
     } />
@@ -83,15 +114,18 @@ function DashboardRedirect() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <AnnouncementBanner />
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

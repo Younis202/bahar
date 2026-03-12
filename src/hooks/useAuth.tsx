@@ -25,7 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        setTimeout(() => fetchRoles(session.user.id), 0);
+        setTimeout(() => fetchRole(session.user.id), 0);
       } else {
         setRoles([]);
       }
@@ -36,7 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchRoles(session.user.id);
+        fetchRole(session.user.id);
       }
       setLoading(false);
     });
@@ -44,13 +44,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchRoles = async (userId: string) => {
-    const { data } = await supabase
-      .from('user_roles')
+  const fetchRole = async (userId: string) => {
+    const { data } = await (supabase as any)
+      .from('profiles')
       .select('role')
-      .eq('user_id', userId);
-    if (data) {
-      setRoles(data.map(r => r.role));
+      .eq('id', userId)
+      .single();
+    if (data && data.role) {
+      setRoles([data.role]);
     }
   };
 

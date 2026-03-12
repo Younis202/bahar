@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,8 +24,8 @@ const Dashboard = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from('enrollments')
-        .select('*, courses(*, categories(name_ar, name_en))')
-        .eq('user_id', user!.id)
+        .select('*, courses(*, categories(name))')
+        .eq('student_id', user!.id)
         .order('enrolled_at', { ascending: false });
       return data ?? [];
     },
@@ -39,7 +39,7 @@ const Dashboard = () => {
       const { data } = await supabase
         .from('lesson_progress')
         .select('lesson_id, completed')
-        .eq('user_id', user!.id)
+        .eq('student_id', user!.id)
         .eq('completed', true);
       return data ?? [];
     },
@@ -47,21 +47,21 @@ const Dashboard = () => {
   });
 
   // Get lesson counts per course
-  const courseIds = enrollments?.map(e => e.course_id) ?? [];
+  const courseIds = enrollments?.map((e: any) => e.course_id) ?? [];
   const { data: lessonCounts } = useQuery({
     queryKey: ['lesson-counts', courseIds],
     queryFn: async () => {
-      const { data: topics } = await supabase
-        .from('topics')
+      const { data: sectionData } = await supabase
+        .from('sections')
         .select('course_id, lessons(id)')
         .in('course_id', courseIds);
       
       const counts: Record<string, { total: number; lessonIds: string[] }> = {};
-      topics?.forEach(t => {
-        if (!counts[t.course_id]) counts[t.course_id] = { total: 0, lessonIds: [] };
-        const lessons = t.lessons || [];
-        counts[t.course_id].total += lessons.length;
-        counts[t.course_id].lessonIds.push(...lessons.map((l: any) => l.id));
+      sectionData?.forEach((s: any) => {
+        if (!counts[s.course_id]) counts[s.course_id] = { total: 0, lessonIds: [] };
+        const lessons = Array.isArray(s.lessons) ? s.lessons : [];
+        counts[s.course_id].total += lessons.length;
+        counts[s.course_id].lessonIds.push(...lessons.map((l: any) => l.id));
       });
       return counts;
     },
@@ -76,8 +76,8 @@ const Dashboard = () => {
     return Math.round((completed / total) * 100);
   };
 
-  const completedCourses = enrollments?.filter(e => e.completed_at)?.length ?? 0;
-  const totalHours = enrollments?.reduce((acc, e) => acc + ((e.courses as any)?.duration_hours || 0), 0) ?? 0;
+  const completedCourses = enrollments?.filter((e: any) => e.completed_at)?.length ?? 0;
+  const totalHours = enrollments?.reduce((acc: number, e: any) => acc + ((e.courses as any)?.duration_hours || 0), 0) ?? 0;
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">{t('general.loading')}</div>;
 
@@ -165,11 +165,9 @@ const Dashboard = () => {
                   </div>
                   <CardContent className="p-4">
                     <Badge variant="secondary" className="mb-2 text-xs">
-                      {language === 'ar' ? (course.categories as any)?.name_ar : (course.categories as any)?.name_en}
+                      {(course.categories as any)?.name}
                     </Badge>
-                    <h3 className="font-bold mb-3 line-clamp-2">
-                      {language === 'ar' ? course.title_ar : (course.title_en || course.title_ar)}
-                    </h3>
+                    <h3 className="font-bold mb-3 line-clamp-2">{course.title}</h3>
                     <div className="flex items-center gap-2">
                       <Progress value={progress} className="flex-1 h-2" />
                       <span className="text-xs font-medium text-muted-foreground">{progress}%</span>
